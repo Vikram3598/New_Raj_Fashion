@@ -5,12 +5,14 @@ import { quoteCart } from "@/lib/commerce/pricing";
 import { paiseToInr } from "@/lib/money";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
 import { getStoreSettings } from "@/lib/store";
+import { razorpayConfigured } from "@/lib/payments/razorpay";
 
 export const metadata = { title: "Checkout" };
 
 export default async function CheckoutPage() {
   const user = await getSessionUser();
   if (!user) redirect("/auth/login?next=/checkout");
+  if (!user.mfaSatisfied) redirect("/auth/mfa/verify?next=%2Fcheckout");
   const cart = await prisma.cart.findFirst({ where: { userId: user.id } });
   if (!cart) redirect("/cart");
   const addresses = await prisma.address.findMany({ where: { userId: user.id } });
@@ -31,7 +33,7 @@ export default async function CheckoutPage() {
     <div className="container-nrf grid gap-8 py-10 lg:grid-cols-2">
       <div>
         <h1 className="font-serif text-4xl">Checkout</h1>
-        <CheckoutForm addresses={addresses} codEnabled={Boolean(payCfg.codEnabled)} />
+        <CheckoutForm addresses={addresses} codEnabled={Boolean(payCfg.codEnabled)} razorpayEnabled={razorpayConfigured()} />
       </div>
       <aside className="card-nrf h-fit p-5">
         <h2 className="font-medium">Order summary</h2>

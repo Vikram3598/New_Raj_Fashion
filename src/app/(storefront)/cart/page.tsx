@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { quoteCart } from "@/lib/commerce/pricing";
 import { paiseToInr } from "@/lib/money";
 import { CartEditor } from "@/components/storefront/cart-editor";
+import { CartCoupon } from "@/components/storefront/cart-coupon";
 
 export const metadata = { title: "Cart" };
 
@@ -64,11 +65,12 @@ export default async function CartPage() {
           <p>Delivery: {paiseToInr(quote.shippingPaise)}</p>
           <p>Tax: {paiseToInr(quote.taxPaise)}</p>
           <p className="mt-2 font-medium">Total: {paiseToInr(quote.totalPaise)}</p>
+          <CartCoupon initialCode={cart.couponCode} />
           <Link href="/checkout" className="btn-primary mt-4 w-full">
             Checkout
           </Link>
         </aside>
-      ) : null}
+      ) : error ? <aside className="card-nrf mt-8 max-w-md p-5"><p className="text-sm text-red-700">{error}</p><p className="mt-2 text-sm">Update or remove the coupon to recalculate your cart.</p><CartCoupon initialCode={cart.couponCode} /></aside> : null}
     </div>
   );
 }

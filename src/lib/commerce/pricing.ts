@@ -7,6 +7,8 @@ export type QuoteLine = {
   productName: string;
   variantTitle: string;
   unitPricePaise: number;
+  discountPaise: number;
+  taxPaise: number;
   lineTotalPaise: number;
 };
 
@@ -20,7 +22,20 @@ export type OrderQuote = {
   couponCode?: string;
 };
 
-export async function quoteCart(cartId: string, couponCode?: string | null): Promise<OrderQuote> {
+export function allocateProportionally(amount: number, weights: number[]) {
+  if (!Number.isSafeInteger(amount) || amount < 0 || weights.some((weight) => !Number.isSafeInteger(weight) || weight < 0)) throw new Error("Allocation values must be non-negative integer paise.");
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (amount === 0 || totalWeight === 0) return weights.map(() => 0);
+  const denominator = BigInt(totalWeight);
+  const allocated = weights.map((weight) => Number((BigInt(amount) * BigInt(weight)) / denominator));
+  let remainder = amount - allocated.reduce((sum, value) => sum + value, 0);
+  for (let index = 0; remainder > 0; index = (index + 1) % weights.length) {
+    if (weights[index] > 0) { allocated[index]++; remainder--; }
+  }
+  return allocated;
+}
+
+export async function quoteCart(cartId: string, couponCode?: string | null, postalCode?: string): Promise<OrderQuote> {
   const cart = await prisma.cart.findUnique({
     where: { id: cartId },
     include: {
@@ -32,6 +47,7 @@ export async function quoteCart(cartId: string, couponCode?: string | null): Pro
     },
   });
   if (!cart) throw new Error("Cart not found.");
+  if (cart.items.length === 0) throw new Error("Your cart is empty.");
 
   const lines: QuoteLine[] = [];
   for (const item of cart.items) {
@@ -50,6 +66,8 @@ export async function quoteCart(cartId: string, couponCode?: string | null): Pro
       productName: variant.product.name,
       variantTitle: variant.title,
       unitPricePaise: variant.pricePaise,
+      discountPaise: 0,
+      taxPaise: 0,
       lineTotalPaise: variant.pricePaise * item.quantity,
     });
   }
@@ -81,6 +99,8 @@ export async function quoteCart(cartId: string, couponCode?: string | null): Pro
 
   const settings = await prisma.storeSettings.findUnique({ where: { id: "store" } });
   const delivery = (settings?.deliveryRules as { feePaise?: number; freeAbovePaise?: number } | null) ?? {};
+  const allowedPostalCodes = (delivery as { allowedPostalCodes?: string[] }).allowedPostalCodes;
+  if (postalCode && allowedPostalCodes?.length && !allowedPostalCodes.includes(postalCode)) throw new Error("Delivery is not available at the selected postal code.");
   let shippingPaise = delivery.feePaise ?? 0;
   if (delivery.freeAbovePaise && subtotalPaise - discountPaise >= delivery.freeAbovePaise) {
     shippingPaise = 0;
@@ -89,9 +109,12 @@ export async function quoteCart(cartId: string, couponCode?: string | null): Pro
   const taxable = Math.max(0, subtotalPaise - discountPaise);
   const taxPaise = taxCfg.rateBps ? Math.floor((taxable * taxCfg.rateBps) / 10000) : 0;
   const totalPaise = taxable + shippingPaise + taxPaise;
+  const discounts = allocateProportionally(discountPaise, lines.map((line) => line.lineTotalPaise));
+  const taxes = allocateProportionally(taxPaise, lines.map((line, index) => line.lineTotalPaise - discounts[index]));
+  const snapshotLines = lines.map((line, index) => ({ ...line, discountPaise: discounts[index], taxPaise: taxes[index], lineTotalPaise: line.lineTotalPaise - discounts[index] + taxes[index] }));
 
   return {
-    lines,
+    lines: snapshotLines,
     subtotalPaise,
     discountPaise,
     shippingPaise,

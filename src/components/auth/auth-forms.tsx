@@ -6,7 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 export function AuthForms({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
-  const next = useSearchParams().get("next") ?? "/account";
+  const searchParams = useSearchParams();
+  const requestedNext = searchParams.get("next");
+  const next = requestedNext?.startsWith("/") && !requestedNext.startsWith("//") && !requestedNext.includes("\\") ? requestedNext : "/account";
+  const authError = searchParams.get("error") === "google" ? "Google sign-in could not be completed. Try again or use another sign-in method." : null;
   const [tab, setTab] = useState<"password" | "otp">("password");
   const [channel, setChannel] = useState<"EMAIL" | "PHONE">("PHONE");
   const [destination, setDestination] = useState("");
@@ -30,7 +33,7 @@ export function AuthForms({ mode }: { mode: "login" | "signup" }) {
     if (!res.ok) setError(data.error);
     else {
       setChallengeId(data.challengeId);
-      setInfo("If this destination can receive messages, a verification code has been sent.");
+      setInfo(data.devCode ? `Development test code: ${data.devCode}` : "If this destination can receive messages, a verification code has been sent.");
     }
   }
 
@@ -45,7 +48,7 @@ export function AuthForms({ mode }: { mode: "login" | "signup" }) {
       });
       const data = await res.json();
       if (!res.ok) return setError(data.error);
-      router.push(data.mfaRequired ? "/auth/mfa/verify" : next);
+      router.push(data.mfaRequired ? `/auth/mfa/verify?next=${encodeURIComponent(next)}` : next);
       return;
     }
     const res = await fetch("/api/auth/signup", {
@@ -73,11 +76,12 @@ export function AuthForms({ mode }: { mode: "login" | "signup" }) {
       return;
     }
     if (!res.ok) return setError(data.error);
-    router.push(data.mfaRequired ? "/auth/mfa/verify" : next);
+    router.push(data.mfaRequired ? `/auth/mfa/verify?next=${encodeURIComponent(next)}` : next);
   }
 
   return (
     <div className="mt-8">
+      {authError && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-100">{authError}</p>}
       <div className="flex gap-2">
         <button type="button" className={tab === "password" ? "btn-primary" : "btn-secondary"} onClick={() => setTab("password")}>
           Password
@@ -179,3 +183,4 @@ export function AuthForms({ mode }: { mode: "login" | "signup" }) {
     </div>
   );
 }
+

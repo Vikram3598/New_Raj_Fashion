@@ -1,0 +1,8 @@
+import {describe,expect,it} from "vitest";
+import {DEFAULT_STAFF_PERMISSIONS,FULFILMENT_TRANSITIONS,OWNER_PERMISSIONS,PERMISSIONS,resolveAuthorization} from "../../src/lib/permissions";
+describe("server role resolution",()=>{
+ it("removes suspended staff role permissions even if grants remain",()=>{const result=resolveAuthorization({assignedRoles:["CUSTOMER","STAFF"],rolePermissions:[{role:"STAFF",key:PERMISSIONS.ORDER_READ}],staffStatus:"SUSPENDED",staffGrants:[{key:PERMISSIONS.ORDER_FULFIL,granted:true}]});expect(result.roles).toEqual(["CUSTOMER"]);expect(result.permissions).toEqual([])});
+ it("applies active staff grants while retaining limited role permissions",()=>{const result=resolveAuthorization({assignedRoles:["STAFF"],rolePermissions:DEFAULT_STAFF_PERMISSIONS.map(key=>({role:"STAFF",key})),staffStatus:"ACTIVE",staffGrants:[{key:PERMISSIONS.ORDER_FULFIL,granted:false}]});expect(result.permissions).toContain(PERMISSIONS.ORDER_READ);expect(result.permissions).not.toContain(PERMISSIONS.ORDER_FULFIL)});
+ it("always gives Owner the complete permission set",()=>{const result=resolveAuthorization({assignedRoles:["OWNER"],rolePermissions:[],staffStatus:null,staffGrants:[]});expect(new Set(result.permissions)).toEqual(new Set(OWNER_PERMISSIONS))});
+});
+describe("fulfilment transitions",()=>{it("allows only the defined next steps",()=>{expect(FULFILMENT_TRANSITIONS.PACKED).toEqual(["SHIPPED"]);expect(FULFILMENT_TRANSITIONS.REFUNDED).toEqual([]);expect(FULFILMENT_TRANSITIONS.PENDING_CONFIRMATION).not.toContain("DELIVERED");expect(FULFILMENT_TRANSITIONS.PENDING_CONFIRMATION).toContain("CANCELLATION_REQUESTED");expect(FULFILMENT_TRANSITIONS.REFUND_PROCESSING).not.toContain("REFUNDED")})});

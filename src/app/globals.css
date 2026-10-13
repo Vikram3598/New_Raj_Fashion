@@ -8,6 +8,8 @@
   --muted: #6b5b55;
   --card: #ffffff;
   --ring: #7a1f2b;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua";
+  --font-sans: "Aptos", "Segoe UI";
 }
 
 .dark {

@@ -18,7 +18,10 @@ export const getBanners = cache(async (slot?: string) => {
     where: {
       enabled: true,
       ...(slot ? { slot } : {}),
-      OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }],
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] },
+      ],
     },
     orderBy: { sortOrder: "asc" },
   });

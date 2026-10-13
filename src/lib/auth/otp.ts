@@ -71,7 +71,7 @@ export async function issueOtp(input: {
     console.info("OTP issued", { challengeId: challenge.id, destinationType: input.destinationType });
   }
 
-  return { challengeId: challenge.id };
+  return { challengeId: challenge.id, ...(devOtpAllowed() ? { devCode: code } : {}) };
 }
 
 export async function verifyOtp(input: {
@@ -80,38 +80,24 @@ export async function verifyOtp(input: {
   destination: string;
   purpose: OtpPurpose;
   ipAddress?: string;
+  consume?: boolean;
 }) {
   await assertRateLimit(`otp-verify:${input.challengeId}`, 8, 15 * 60 * 1000);
   const challenge = await prisma.otpChallenge.findUnique({ where: { id: input.challengeId } });
-  if (!challenge || challenge.destination !== input.destination || challenge.purpose !== input.purpose) {
-    throw new Error("Invalid or expired verification code.");
-  }
-  if (challenge.consumedAt || challenge.expiresAt < new Date()) {
-    throw new Error("Invalid or expired verification code.");
-  }
+  if (!challenge || challenge.destination !== input.destination || challenge.purpose !== input.purpose) throw new Error("Invalid or expired verification code.");
+  if (challenge.consumedAt || challenge.expiresAt < new Date()) throw new Error("Invalid or expired verification code.");
   if (challenge.attemptCount >= challenge.maxAttempts) {
-    await recordSecurityEvent({
-      type: "otp_bruteforce",
-      severity: "warning",
-      ipAddress: input.ipAddress,
-      detail: { challengeId: challenge.id },
-    });
+    await recordSecurityEvent({ type: "otp_bruteforce", severity: "warning", ipAddress: input.ipAddress, detail: { challengeId: challenge.id } });
     throw new Error("Invalid or expired verification code.");
   }
-
-  const expected = hashOtp(input.code, challenge.id);
-  const ok = safeEqual(expected, challenge.codeHash);
-  await prisma.otpChallenge.update({
-    where: { id: challenge.id },
-    data: {
-      attemptCount: { increment: 1 },
-      consumedAt: ok ? new Date() : undefined,
-    },
+  const valid = safeEqual(hashOtp(input.code, challenge.id), challenge.codeHash);
+  const update = await prisma.otpChallenge.updateMany({
+    where: { id: challenge.id, consumedAt: null, expiresAt: { gt: new Date() }, attemptCount: { lt: challenge.maxAttempts } },
+    data: { attemptCount: { increment: 1 }, ...(valid && input.consume !== false ? { consumedAt: new Date() } : {}) },
   });
-  if (!ok) throw new Error("Invalid or expired verification code.");
+  if (update.count !== 1 || !valid) throw new Error("Invalid or expired verification code.");
   return challenge;
 }
-
 export async function findUsersByIdentity(type: IdentityType, valueNormalized: string) {
   return prisma.user.findMany({
     where: {
@@ -121,3 +107,5 @@ export async function findUsersByIdentity(type: IdentityType, valueNormalized: s
     select: { id: true, username: true, customerCode: true },
   });
 }
+
+

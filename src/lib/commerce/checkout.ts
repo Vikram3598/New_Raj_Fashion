@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { quoteCart } from "@/lib/commerce/pricing";
 import { commitReservation, releaseReservation, reserveStock } from "@/lib/commerce/inventory";
@@ -21,7 +22,7 @@ export async function placeOrder(input: {
     });
     if (!address) throw new Error("Please select a valid delivery address.");
 
-    const quote = await quoteCart(input.cartId);
+    const quote = await quoteCart(input.cartId, null, address.postalCode);
     const settings = await tx.storeSettings.findUnique({ where: { id: "store" } });
     const payCfg = (settings?.paymentConfig as { codEnabled?: boolean } | null) ?? {};
     if (input.method === "COD" && !payCfg.codEnabled) {
@@ -79,6 +80,9 @@ export async function placeOrder(input: {
     await tx.cartItem.deleteMany({ where: { cartId: input.cartId } });
 
     if (input.method === "COD") {
+      for (const line of quote.lines) {
+        await commitReservation(tx, line.variantId, line.quantity, order.id);
+      }
       await tx.order.update({
         where: { id: order.id },
         data: { fulfilmentStatus: "CONFIRMED" },
@@ -116,39 +120,31 @@ export async function placeOrder(input: {
   });
 }
 
-export async function confirmPaidOrder(orderId: string) {
-  await prisma.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({
-      where: { id: orderId },
-      include: { items: true, payments: true },
-    });
+export async function confirmPaidOrder(orderId: string, tx?: Prisma.TransactionClient) {
+  const commit = async (client: Prisma.TransactionClient) => {
+    const order = await client.order.findUnique({ where: { id: orderId }, include: { items: true } });
     if (!order) throw new Error("Order not found");
-    if (order.paymentStatus === "PAID") return;
-    for (const item of order.items) {
-      if (item.variantId) {
-        await commitReservation(tx, item.variantId, item.quantity, order.id);
-      }
-    }
-    await tx.order.update({
-      where: { id: order.id },
+    if (order.paymentStatus === "PAID") return false;
+    const claim = await client.order.updateMany({
+      where: { id: orderId, paymentStatus: { not: "PAID" }, fulfilmentStatus: { in: ["PENDING_CONFIRMATION", "CONFIRMED"] } },
       data: { paymentStatus: "PAID", fulfilmentStatus: "CONFIRMED" },
     });
-    await tx.orderStatusEvent.create({
-      data: { orderId: order.id, fromStatus: order.fulfilmentStatus, toStatus: "CONFIRMED", note: "Payment verified" },
-    });
-  });
+    if (claim.count === 0) throw new Error("This order can no longer be confirmed as paid.");
+    for (const item of order.items) if (item.variantId) await commitReservation(client, item.variantId, item.quantity, order.id);
+    await client.orderStatusEvent.create({ data: { orderId: order.id, fromStatus: order.fulfilmentStatus, toStatus: "CONFIRMED", note: "Payment verified" } });
+    return true;
+  };
+  return tx ? commit(tx) : prisma.$transaction(commit);
 }
-
-export async function failPendingOrder(orderId: string) {
-  await prisma.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
-    if (!order || order.paymentStatus === "PAID") return;
-    for (const item of order.items) {
-      if (item.variantId) await releaseReservation(tx, item.variantId, item.quantity, order.id);
-    }
-    await tx.order.update({
-      where: { id: order.id },
-      data: { paymentStatus: "FAILED", fulfilmentStatus: "CANCELLED" },
-    });
-  });
+export async function failPendingOrder(orderId: string, tx?: Prisma.TransactionClient) {
+  const release = async (client: Prisma.TransactionClient) => {
+    const order = await client.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    if (!order || order.paymentStatus === "PAID") return false;
+    const claim = await client.order.updateMany({ where: { id: order.id, paymentStatus: { not: "PAID" }, fulfilmentStatus: { in: ["PENDING_CONFIRMATION", "CONFIRMED"] } }, data: { paymentStatus: "FAILED", fulfilmentStatus: "CANCELLED" } });
+    if (claim.count === 0) return false;
+    for (const item of order.items) if (item.variantId) await releaseReservation(client, item.variantId, item.quantity, order.id);
+    await client.orderStatusEvent.create({ data: { orderId: order.id, fromStatus: order.fulfilmentStatus, toStatus: "CANCELLED", note: "Payment failed" } });
+    return true;
+  };
+  return tx ? release(tx) : prisma.$transaction(release);
 }

@@ -1,16 +1,24 @@
 import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
+const imagePatterns: NonNullable<NextConfig["images"]>["remotePatterns"] = [{ protocol: "http", hostname: "localhost", port: "9000", pathname: "/**" }];
+for (const value of [process.env.S3_ENDPOINT, process.env.S3_PUBLIC_URL]) {
+  if (!value) continue;
+  try {
+    const url = new URL(value);
+    const path = url.pathname.replace(/\/+$/, "");
+    const pattern = { protocol: url.protocol.slice(0, -1) as "http" | "https", hostname: url.hostname, ...(url.port ? { port: url.port } : {}), pathname: path ? `${path}/**` : "/**" };
+    if (!imagePatterns.some((existing) => existing.protocol === pattern.protocol && existing.hostname === pattern.hostname && existing.port === pattern.port && existing.pathname === pattern.pathname)) imagePatterns.push(pattern);
+  } catch { /* Invalid storage URLs are reported by the storage upload setup instead. */ }
+}
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
-    remotePatterns: [
-      { protocol: "https", hostname: "**" },
-      { protocol: "http", hostname: "localhost" },
-    ],
+    remotePatterns: imagePatterns,
   },
   experimental: {
+    cpus: 1,
     serverActions: {
       bodySizeLimit: "4mb",
     },
@@ -48,3 +56,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

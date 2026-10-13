@@ -20,7 +20,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (pathname.startsWith("/shopkeeper") && pathname !== "/shopkeeper/login" && !hasSession) {
+  if (pathname.startsWith("/shopkeeper") && pathname !== "/shopkeeper/login" && pathname !== "/shopkeeper/invite" && !hasSession) {
     const url = req.nextUrl.clone();
     url.pathname = "/shopkeeper/login";
     url.searchParams.set("next", pathname);

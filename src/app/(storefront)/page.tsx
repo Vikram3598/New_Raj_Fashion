@@ -1,4 +1,6 @@
+export const dynamic = "force-dynamic";
 import Link from "next/link";
+import Image from "next/image";
 import { prisma } from "@/lib/db";
 import { getBanners, getNavCategories, getStoreSettings } from "@/lib/store";
 import { ProductCard } from "@/components/storefront/product-card";
@@ -33,7 +35,7 @@ export default async function HomePage() {
   if (user) {
     const rv = await prisma.recentlyViewed.findMany({
       where: { userId: user.id },
-      include: { product: { include: { images: true, variants: true } } },
+      include: { product: { include: { images: true, variants: true, category: true } } },
       orderBy: { viewedAt: "desc" },
       take: 8,
     });
@@ -50,7 +52,8 @@ export default async function HomePage() {
   return (
     <div>
       <section className="relative overflow-hidden bg-maroon-900 text-cream-100">
-        <div className="container-nrf grid gap-8 py-16 lg:grid-cols-2 lg:items-center">
+        {hero[0]?.imageUrl ? <div className="absolute inset-0"><Image src={hero[0].imageUrl} alt="" fill priority sizes="100vw" unoptimized className="object-cover" /><div className="absolute inset-0 bg-maroon-900/75" /></div> : null}
+        <div className="container-nrf relative z-10 grid gap-8 py-16 lg:grid-cols-2 lg:items-center">
           <div>
             <p className="text-sm uppercase tracking-[0.25em] text-gold-400">Gandhi Chowk, Sidhi</p>
             <h1 className="mt-3 font-serif text-4xl leading-tight sm:text-6xl">
@@ -82,10 +85,13 @@ export default async function HomePage() {
       {promo.length > 0 ? (
         <section className="container-nrf grid gap-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
           {promo.map((b) => (
-            <Link key={b.id} href={b.href ?? "/shop"} className="card-nrf bg-cream-100 p-5 dark:bg-stone-900">
+            <Link key={b.id} href={b.href ?? "/shop"} className="card-nrf overflow-hidden bg-cream-100 dark:bg-stone-900">
+              {b.imageUrl ? <div className="relative aspect-[16/9]"><Image src={b.imageUrl} alt="" fill sizes="(max-width: 768px) 50vw, 25vw" unoptimized className="object-cover" /></div> : null}
+              <div className="p-5">
               <p className="text-xs uppercase tracking-widest text-gold-700">{b.slot}</p>
               <h2 className="mt-2 font-serif text-2xl">{b.title}</h2>
               {b.subtitle ? <p className="mt-1 text-sm text-[var(--muted)]">{b.subtitle}</p> : null}
+              </div>
             </Link>
           ))}
         </section>
@@ -209,3 +215,5 @@ export default async function HomePage() {
     </div>
   );
 }
+
+

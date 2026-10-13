@@ -41,10 +41,11 @@ export async function POST(req: Request) {
   });
   const owns = user?.identities.some((i) => i.type === body.data.channel && i.valueNormalized === destination && i.verifiedAt);
   if (!user || !owns) return NextResponse.json({ error: "Unable to reset password." }, { status: 400 });
+  const hash = await hashPassword(body.data.password);
   await prisma.passwordCredential.upsert({
     where: { userId: user.id },
-    update: { hash: await hashPassword(body.data.password), passwordSetAt: new Date() },
-    create: { userId: user.id, hash: await hashPassword(body.data.password) },
+    update: { hash, passwordSetAt: new Date() },
+    create: { userId: user.id, hash },
   });
   await revokeAllSessions(user.id);
   return NextResponse.json({ ok: true });

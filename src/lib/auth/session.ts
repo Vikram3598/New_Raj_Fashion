@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { hashSessionToken, randomToken } from "@/lib/crypto";
 import type { PermissionKey } from "@/lib/permissions";
-import { OWNER_PERMISSIONS, PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, resolveAuthorization } from "@/lib/permissions";
 
 const COOKIE = process.env.SESSION_COOKIE_NAME ?? "nrf_session";
 const TTL_DAYS = Number(process.env.SESSION_TTL_DAYS ?? 14);
@@ -78,22 +78,13 @@ export async function getSessionUser(): Promise<AuthUser | null> {
     data: { lastSeenAt: new Date() },
   });
 
-  const roles = session.user.roles.map((r) => r.role.name);
-  const permissionSet = new Set<PermissionKey>();
-  for (const ur of session.user.roles) {
-    for (const rp of ur.role.permissions) {
-      permissionSet.add(rp.permission.key as PermissionKey);
-    }
-  }
-  if (roles.includes("OWNER")) {
-    for (const p of OWNER_PERMISSIONS) permissionSet.add(p);
-  }
-  if (session.user.staffProfile?.status === "ACTIVE") {
-    for (const g of session.user.staffProfile.grants) {
-      if (g.granted) permissionSet.add(g.permission.key as PermissionKey);
-      else permissionSet.delete(g.permission.key as PermissionKey);
-    }
-  }
+  const authorization = resolveAuthorization({
+    assignedRoles: session.user.roles.map((r) => r.role.name),
+    rolePermissions: session.user.roles.flatMap((r) => r.role.permissions.map((p) => ({ role: r.role.name, key: p.permission.key }))),
+    staffStatus: session.user.staffProfile?.status ?? null,
+    staffGrants: session.user.staffProfile?.grants.map((g) => ({ key: g.permission.key, granted: g.granted })) ?? [],
+  });
+  const { roles, permissions } = authorization;
 
   const mfaEnabled = Boolean(session.user.totp?.enabledAt);
   return {
@@ -102,7 +93,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
     customerCode: session.user.customerCode,
     status: session.user.status,
     roles,
-    permissions: [...permissionSet],
+    permissions,
     mfaEnabled,
     mfaSatisfied: Boolean(session.mfaSatisfiedAt) || !mfaEnabled,
   };
@@ -173,3 +164,4 @@ export class AuthError extends Error {
 export function hasOwnerProductWrite(user: AuthUser) {
   return user.roles.includes("OWNER") && user.permissions.includes(PERMISSIONS.PRODUCT_WRITE);
 }
+

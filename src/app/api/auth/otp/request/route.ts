@@ -17,14 +17,15 @@ export async function POST(req: Request) {
     body.data.channel === "EMAIL" ? normalizeEmail(body.data.destination) : normalizePhone(body.data.destination);
   const ip = req.headers.get("x-forwarded-for") ?? "unknown";
   try {
-    const { challengeId } = await issueOtp({
+    const result = await issueOtp({
       destination,
       destinationType: body.data.channel as IdentityType,
       purpose: body.data.purpose as OtpPurpose,
       ipAddress: ip,
     });
-    return NextResponse.json({ challengeId });
+    return NextResponse.json(result);
   } catch {
     return NextResponse.json({ error: "Unable to send a verification code right now." }, { status: 429 });
   }
 }
+

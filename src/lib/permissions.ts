@@ -27,7 +27,7 @@ export const DEFAULT_STAFF_PERMISSIONS: PermissionKey[] = [
 ];
 
 export const FULFILMENT_TRANSITIONS: Record<string, string[]> = {
-  PENDING_CONFIRMATION: ["CONFIRMED", "CANCELLED"],
+  PENDING_CONFIRMATION: ["CONFIRMED", "CANCELLATION_REQUESTED", "CANCELLED"],
   CONFIRMED: ["PROCESSING", "CANCELLATION_REQUESTED", "CANCELLED"],
   PROCESSING: ["PACKED", "CANCELLATION_REQUESTED"],
   PACKED: ["SHIPPED"],
@@ -38,6 +38,31 @@ export const FULFILMENT_TRANSITIONS: Record<string, string[]> = {
   CANCELLED: ["REFUND_PROCESSING"],
   RETURN_REQUESTED: ["RETURNED", "DELIVERED"],
   RETURNED: ["REFUND_PROCESSING"],
-  REFUND_PROCESSING: ["REFUNDED"],
+  REFUND_PROCESSING: [],
   REFUNDED: [],
 };
+
+export function resolveAuthorization(input: {
+  assignedRoles: string[];
+  rolePermissions: { role: string; key: string }[];
+  staffStatus: string | null;
+  staffGrants: { key: string; granted: boolean }[];
+}) {
+  const staffActive = input.staffStatus === "ACTIVE";
+  const roles = input.assignedRoles.filter((role) => role !== "STAFF" || staffActive);
+  const permissionSet = new Set<string>();
+  for (const permission of input.rolePermissions) {
+    if (permission.role === "STAFF" && !staffActive) continue;
+    permissionSet.add(permission.key);
+  }
+  if (roles.includes("OWNER")) {
+    for (const permission of OWNER_PERMISSIONS) permissionSet.add(permission);
+  }
+  if (staffActive) {
+    for (const grant of input.staffGrants) {
+      if (grant.granted) permissionSet.add(grant.key);
+      else permissionSet.delete(grant.key);
+    }
+  }
+  return { roles, permissions: [...permissionSet] as PermissionKey[] };
+}

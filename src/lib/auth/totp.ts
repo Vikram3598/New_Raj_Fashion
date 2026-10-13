@@ -1,16 +1,28 @@
 import { Secret, TOTP } from "otpauth";
-import { randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
-import { hmacSha256, randomToken, safeEqual } from "@/lib/crypto";
-import { hashPassword } from "@/lib/auth/password";
+import { getAuthSecret, hmacSha256, randomToken } from "@/lib/crypto";
 
 function encryptSecret(plain: string) {
-  return hmacSha256(`totp-store:${plain}`) + ":" + Buffer.from(plain, "utf8").toString("base64url");
+  const key = createHash("sha256").update(`nrf-totp-secret:${getAuthSecret()}`).digest();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  return `v1:${iv.toString("base64url")}:${cipher.getAuthTag().toString("base64url")}:${encrypted.toString("base64url")}`;
 }
 
 function decryptSecret(stored: string) {
-  const idx = stored.indexOf(":");
-  return Buffer.from(stored.slice(idx + 1), "base64url").toString("utf8");
+  const [version, ivText, tagText, encryptedText] = stored.split(":");
+  if (version !== "v1" || !ivText || !tagText || !encryptedText) {
+    // Compatibility for secrets created before authenticated encryption was added.
+    const idx = stored.indexOf(":");
+    if (idx < 0) throw new Error("Invalid authenticator secret.");
+    return Buffer.from(stored.slice(idx + 1), "base64url").toString("utf8");
+  }
+  const key = createHash("sha256").update(`nrf-totp-secret:${getAuthSecret()}`).digest();
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivText, "base64url"));
+  decipher.setAuthTag(Buffer.from(tagText, "base64url"));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedText, "base64url")), decipher.final()]).toString("utf8");
 }
 
 export async function beginTotpEnrollment(userId: string, username: string) {
@@ -40,7 +52,7 @@ export async function verifyAndEnableTotp(userId: string, token: string) {
   await prisma.$transaction([
     prisma.totpAuthenticator.update({
       where: { userId },
-      data: { enabledAt: new Date() },
+      data: { enabledAt: new Date(), secretEnc: encryptSecret(decryptSecret(rec.secretEnc)) },
     }),
     prisma.recoveryCode.deleteMany({ where: { userId } }),
     prisma.recoveryCode.createMany({
@@ -58,15 +70,16 @@ export function verifyTotpToken(secretBase32: string, token: string) {
 export async function verifyUserTotp(userId: string, token: string) {
   const rec = await prisma.totpAuthenticator.findUnique({ where: { userId } });
   if (!rec?.enabledAt) throw new Error("Authenticator is not enabled for this account.");
-  return verifyTotpToken(decryptSecret(rec.secretEnc), token);
+  const secret = decryptSecret(rec.secretEnc);
+  const valid = verifyTotpToken(secret, token);
+  if (valid && !rec.secretEnc.startsWith("v1:")) {
+    await prisma.totpAuthenticator.update({ where: { userId }, data: { secretEnc: encryptSecret(secret) } });
+  }
+  return valid;
 }
 
 export async function consumeRecoveryCode(userId: string, code: string) {
   const hash = hmacSha256(code.trim().toUpperCase());
-  const found = await prisma.recoveryCode.findFirst({ where: { userId, codeHash: hash, usedAt: null } });
-  if (!found) return false;
-  await prisma.recoveryCode.update({ where: { id: found.id }, data: { usedAt: new Date() } });
-  return true;
+  const consumed = await prisma.recoveryCode.updateMany({ where: { userId, codeHash: hash, usedAt: null }, data: { usedAt: new Date() } });
+  return consumed.count === 1;
 }
-
-export { randomBytes, hashPassword, safeEqual };

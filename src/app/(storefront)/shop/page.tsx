@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/db";
 import { ProductCard } from "@/components/storefront/product-card";
 import { ShopFilters } from "@/components/storefront/shop-filters";
@@ -60,7 +61,7 @@ export default async function ShopPage({
   return (
     <div className="container-nrf py-10">
       <h1 className="font-serif text-4xl">Shop</h1>
-      <ShopFilters />
+      <ShopFilters query={q} sort={sort} colour={colour} size={size} />
       {sorted.length === 0 ? (
         <p className="mt-10 text-[var(--muted)]">No products match this search. Try a different keyword or clear filters.</p>
       ) : (
@@ -76,3 +77,4 @@ export default async function ShopPage({
     </div>
   );
 }
+
