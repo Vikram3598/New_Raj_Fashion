@@ -1,0 +1,43 @@
+export const PERMISSIONS = {
+  PRODUCT_READ: "product.read",
+  PRODUCT_WRITE: "product.write",
+  PRODUCT_PUBLISH: "product.publish",
+  INVENTORY_READ: "inventory.read",
+  INVENTORY_ADJUST: "inventory.adjust",
+  ORDER_READ: "order.read",
+  ORDER_FULFIL: "order.fulfil",
+  ORDER_REFUND: "order.refund",
+  CUSTOMER_READ: "customer.read",
+  STAFF_MANAGE: "staff.manage",
+  SETTINGS_WRITE: "settings.write",
+  REPORTS_READ: "reports.read",
+  AUDIT_READ: "audit.read",
+  PAYMENT_READ: "payment.read",
+} as const;
+
+export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+export const OWNER_PERMISSIONS = Object.values(PERMISSIONS);
+
+export const DEFAULT_STAFF_PERMISSIONS: PermissionKey[] = [
+  PERMISSIONS.PRODUCT_READ,
+  PERMISSIONS.INVENTORY_READ,
+  PERMISSIONS.ORDER_READ,
+  PERMISSIONS.ORDER_FULFIL,
+];
+
+export const FULFILMENT_TRANSITIONS: Record<string, string[]> = {
+  PENDING_CONFIRMATION: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["PROCESSING", "CANCELLATION_REQUESTED", "CANCELLED"],
+  PROCESSING: ["PACKED", "CANCELLATION_REQUESTED"],
+  PACKED: ["SHIPPED"],
+  SHIPPED: ["OUT_FOR_DELIVERY"],
+  OUT_FOR_DELIVERY: ["DELIVERED"],
+  DELIVERED: ["RETURN_REQUESTED"],
+  CANCELLATION_REQUESTED: ["CANCELLED", "PROCESSING"],
+  CANCELLED: ["REFUND_PROCESSING"],
+  RETURN_REQUESTED: ["RETURNED", "DELIVERED"],
+  RETURNED: ["REFUND_PROCESSING"],
+  REFUND_PROCESSING: ["REFUNDED"],
+  REFUNDED: [],
+};
