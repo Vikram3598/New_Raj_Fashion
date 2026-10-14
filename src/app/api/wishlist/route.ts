@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
   if (!user.mfaSatisfied) return NextResponse.json({ error: "Complete authenticator verification first." }, { status: 403 });
-  const body = schema.safeParse(await req.json());
+  const body = schema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid item." }, { status: 400 });
   const wishlist = await prisma.wishlist.upsert({
     where: { userId: user.id },

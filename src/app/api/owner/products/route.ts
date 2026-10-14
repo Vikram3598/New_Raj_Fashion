@@ -10,8 +10,8 @@ const variantSchema = z.object({
   stockOnHand: z.number().int().min(0).max(100000), size: z.string().max(40).optional().nullable(), colour: z.string().max(60).optional().nullable(),
 });
 const productSchema = z.object({
-  sku: z.string().trim().min(2).max(64), name: z.string().trim().min(2).max(160),
-  slug: z.string().trim().min(2).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), description: z.string().trim().min(1).max(10000),
+  sku: z.string().trim().min(2).max(64), name: z.string().trim().min(2).max(160), nameHi: z.string().trim().max(160).optional().nullable(),
+  slug: z.string().trim().min(2).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), description: z.string().trim().min(1).max(10000), descriptionHi: z.string().trim().max(10000).optional().nullable(),
   categoryId: z.string().optional().nullable(), brand: z.string().max(120).optional().nullable(), fabric: z.string().max(120).optional().nullable(),
   material: z.string().max(120).optional().nullable(), gender: z.string().max(80).optional().nullable(), occasion: z.string().max(120).optional().nullable(),
   careInstructions: z.string().max(2000).optional().nullable(), tags: z.array(z.string().trim().min(1).max(40)).max(30).default([]),
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   try {
     const product = await prisma.$transaction(async (tx) => {
       const created = await tx.product.create({ data: {
-        sku: input.sku, name: input.name, slug: input.slug, description: input.description, categoryId: input.categoryId || null,
+        sku: input.sku, name: input.name, nameHi: input.nameHi || null, slug: input.slug, description: input.description, descriptionHi: input.descriptionHi || null, categoryId: input.categoryId || null,
         brand: input.brand || null, fabric: input.fabric || null, material: input.material || null, gender: input.gender || null,
         occasion: input.occasion || null, careInstructions: input.careInstructions || null, tags: input.tags, status: input.status,
         variants: { create: input.variants.map(v => ({ sku: v.sku, title: v.title, pricePaise: Math.round(v.priceRupees*100), mrpPaise: v.mrpRupees ? Math.round(v.mrpRupees*100) : null, costPaise: v.costRupees ? Math.round(v.costRupees*100) : null, stockOnHand: v.stockOnHand, size: v.size || null, colour: v.colour || null })) },

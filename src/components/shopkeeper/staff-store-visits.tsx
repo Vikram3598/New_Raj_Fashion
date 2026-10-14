@@ -1,0 +1,29 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useLocale } from "@/i18n/locale-provider";
+import { ResilientImage } from "@/components/storefront/resilient-image";
+
+type Visit = { id: string; reference: string; customerName: string; phone: string; status: string; purpose: string; referenceImageUrl: string | null; slot: { startsAt: string }; items: { id: string; productName: string; quantity: number; size: string | null; colour: string | null; material: string | null; instructions: string | null; imageUrl: string | null }[]; tasks: { id: string; label: string; completed: boolean; internalNote: string | null; alternative: string | null }[] };
+export function StaffStoreVisits() {
+  const { locale } = useLocale(); const [visits, setVisits] = useState<Visit[]>([]); const [error, setError] = useState(""); const [busy, setBusy] = useState("");
+  const T = useCallback((en: string, hi: string) => locale === "hi" ? hi : en, [locale]);
+  const refresh = useCallback(async () => { const response = await fetch("/api/staff/store-visits"); const data = await response.json(); if (!response.ok) setError(data.error ?? T("Access denied.", "अनुमति नहीं है।")); else setVisits(data.visits ?? []); }, [T]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  async function save(visit: Visit, form: HTMLFormElement) {
+    const data = new FormData(form); setBusy(visit.id); setError("");
+    const tasks = visit.tasks.map((task) => ({ id: task.id, completed: data.get(`done:${task.id}`) === "on", internalNote: String(data.get(`note:${task.id}`) ?? ""), alternative: String(data.get(`alt:${task.id}`) ?? "") }));
+    const status = String(data.get("status") ?? "");
+    try { const response = await fetch(`/api/staff/store-visits/${visit.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ tasks, status: status || undefined }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? T("Save failed.", "सहेजना विफल हुआ।")); await refresh(); }
+    catch (e) { setError(e instanceof Error ? e.message : T("Save failed.", "सहेजना विफल हुआ।")); }
+    finally { setBusy(""); }
+  }
+  return <main className="container-nrf py-9"><p className="text-xs uppercase tracking-[.2em] text-maroon-700">Staff workspace</p><h1 className="mt-2 font-serif text-4xl">{T("Assigned store visits", "सौंपी गई दुकान विज़िट")}</h1><p className="mt-2 text-sm text-[var(--muted)]">{T("Only visits assigned to your account are shown.", "यहाँ केवल आपके खाते को सौंपी गई विज़िट दिखाई जाती हैं।")}</p>{error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
+    <div className="mt-6 grid gap-5">{visits.map((visit) => <article key={visit.id} className="card-nrf p-5"><div className="flex flex-wrap justify-between gap-2"><div><p className="text-xs text-maroon-700">{visit.reference}</p><h2 className="font-serif text-2xl">{visit.customerName}</h2><a className="text-sm underline" href={`tel:${visit.phone}`}>{visit.phone}</a></div><p className="text-sm">{new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date(visit.slot.startsAt))}</p></div>
+      {visit.referenceImageUrl ? <div className="relative mt-4 aspect-[3/1] max-w-lg overflow-hidden rounded-xl"><ResilientImage src={visit.referenceImageUrl} alt={T("Customer reference image", "ग्राहक का संदर्भ चित्र")} fill sizes="(max-width: 640px) 100vw, 512px" unoptimized className="object-cover" /></div> : null}
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">{visit.items.map((item) => <div className="rounded-lg bg-stone-50 p-3 text-sm dark:bg-stone-800" key={item.id}>{item.imageUrl ? <div className="relative mb-2 aspect-[3/2] overflow-hidden rounded-lg"><ResilientImage src={item.imageUrl} alt={item.productName} fill sizes="(max-width: 640px) 100vw, 400px" unoptimized className="object-cover" /></div> : null}<strong>{item.productName}</strong> × {item.quantity}<p>{[item.size, item.colour, item.material].filter(Boolean).join(" · ")}</p>{item.instructions ? <p>{item.instructions}</p> : null}</div>)}</div>
+      <form onSubmit={(event) => { event.preventDefault(); void save(visit, event.currentTarget); }} className="mt-4 grid gap-3 border-t border-stone-200 pt-4 dark:border-stone-700"><h3 className="font-medium">{T("Preparation checklist", "तैयारी सूची")}</h3>{visit.tasks.map((task) => <div key={task.id} className="grid gap-2 rounded-lg border border-stone-200 p-3 dark:border-stone-700"><label className="flex items-center gap-2 text-sm"><input name={`done:${task.id}`} type="checkbox" defaultChecked={task.completed} />{task.label}</label><div className="grid gap-2 sm:grid-cols-2"><input name={`note:${task.id}`} defaultValue={task.internalNote ?? ""} placeholder={T("Operational note", "कार्य संबंधी नोट")} maxLength={1000} className="input-nrf" /><input name={`alt:${task.id}`} defaultValue={task.alternative ?? ""} placeholder={T("Alternative item for Owner review", "मालिक की समीक्षा के लिए विकल्प")} maxLength={500} className="input-nrf" /></div></div>)}<label className="grid gap-1 text-sm">{T("Visit preparation status", "विज़िट तैयारी स्थिति")}<select name="status" defaultValue="" className="input-nrf"><option value="">{T("Keep current status", "वर्तमान स्थिति रखें")}</option><option value="PREPARING">PREPARING</option><option value="READY">READY</option></select></label><button disabled={busy === visit.id} className="btn-primary justify-self-start">{busy === visit.id ? T("Saving…", "सहेजा जा रहा है…") : T("Save preparation", "तैयारी सहेजें")}</button></form>
+    </article>)}</div>
+    {!visits.length && !error ? <p className="card-nrf mt-6 p-8 text-center text-sm text-[var(--muted)]">{T("No store visits are assigned to you.", "आपको कोई दुकान विज़िट नहीं सौंपी गई है।")}</p> : null}
+  </main>;
+}

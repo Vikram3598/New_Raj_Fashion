@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
   if (!user.mfaSatisfied) return NextResponse.json({ error: "Complete authenticator verification first." }, { status: 403 });
-  const body = addSchema.safeParse(await req.json());
+  const body = addSchema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid item." }, { status: 400 });
   const cart = await getOrCreateCart(user.id);
   try {
@@ -47,7 +47,7 @@ export async function PATCH(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
   if (!user.mfaSatisfied) return NextResponse.json({ error: "Complete authenticator verification first." }, { status: 403 });
-  const body = patchSchema.safeParse(await req.json());
+  const body = patchSchema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid update." }, { status: 400 });
   const item = await prisma.cartItem.findFirst({
     where: { id: body.data.itemId, cart: { userId: user.id } },

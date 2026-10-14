@@ -42,7 +42,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   if (!product) return NextResponse.json({ error: "Product not found." }, { status: 404 });
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
-  const parsed = z.object({ alt: z.string().trim().min(1).max(180) }).safeParse({ alt: form?.get("alt") });
+  const parsed = z.object({ alt: z.string().trim().min(1).max(180), altHi: z.string().trim().max(180).optional() }).safeParse({ alt: form?.get("alt"), altHi: form?.get("altHi") || undefined });
   if (!(file instanceof File) || !parsed.success) return NextResponse.json({ error: "Choose an image and enter useful alternative text." }, { status: 400 });
   if (!allowedContentTypes.has(file.type) || file.size < 1 || file.size > MAX_UPLOAD_BYTES) return NextResponse.json({ error: "Use a JPEG, PNG, WebP or AVIF image under 5 MB." }, { status: 400 });
   let bytes: Buffer;
@@ -67,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   try {
     const sortOrder = await prisma.productImage.count({ where: { productId } });
     const image = await prisma.$transaction(async (tx) => {
-      const created = await tx.productImage.create({ data: { productId, url: publicUrl(key), storageKey: key, alt: parsed.data.alt, sortOrder } });
+      const created = await tx.productImage.create({ data: { productId, url: publicUrl(key), storageKey: key, alt: parsed.data.alt, altHi: parsed.data.altHi, sortOrder } });
       await tx.productChange.create({ data: { productId, actorId: actor.id, summary: "Product image uploaded", payload: { imageId: created.id, sortOrder } } });
       await tx.auditLog.create({ data: { actorId: actor.id, action: "product.image.upload", entityType: "Product", entityId: productId } });
       return created;

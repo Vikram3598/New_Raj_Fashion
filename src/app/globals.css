@@ -20,6 +20,10 @@
   --ring: #d4b36a;
 }
 
+html[lang^="hi"] body {
+  font-family: "Noto Sans Devanagari", "Nirmala UI", "Mangal", "Segoe UI", sans-serif;
+}
+
 html,
 body {
   background: var(--bg);

@@ -17,7 +17,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
   const { orderId } = await params; const parsed = schema.safeParse(await req.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: "Invalid order update." }, { status: 400 });
   try {
     const result = await prisma.$transaction(async tx => {
-      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true, payments: { select: { method: true } } } }); if (!order) return null;
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true, payments: { select: { method: true } }, fulfilment: { select: { type: true } } } }); if (!order) return null;
+      if (order.fulfilment?.type === "STORE_PICKUP") throw new Error("Store pickup orders must be updated through the pickup management workflow.");
       if (!FULFILMENT_TRANSITIONS[order.fulfilmentStatus]?.includes(parsed.data.status)) throw new Error("This order status change is not permitted.");
       const updated = await tx.order.update({ where: { id: orderId }, data: { fulfilmentStatus: parsed.data.status } });
       if (parsed.data.status === "CANCELLED") {

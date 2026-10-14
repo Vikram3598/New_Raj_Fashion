@@ -6,6 +6,7 @@ import { SignOutButton } from "@/components/account/sign-out-button";
 const links = [
   ["/account", "Overview"],
   ["/account/orders", "Orders"],
+  ["/account/store-visits", "My store visits"],
   ["/account/profile", "Profile"],
   ["/account/addresses", "Addresses"],
   ["/account/wishlist", "Wishlist"],

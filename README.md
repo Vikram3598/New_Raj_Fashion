@@ -1,6 +1,6 @@
 # New Raj Fashion & Raj Saree Showroom
 
-A responsive e-commerce application for New Raj Fashion and Raj Saree Showroom, Gandhi Chowk, Sidhi, Madhya Pradesh 486661. The app is built with Next.js App Router, TypeScript, Tailwind CSS, PostgreSQL, Prisma and server-side sessions. Business contact details, prices, stock, reviews and payment credentials are not fabricated.
+A responsive English/Hindi e-commerce application for New Raj Fashion and Raj Saree Showroom, Gandhi Chowk, Sidhi, Madhya Pradesh 486661. Language preference persists across pages, and light/dark appearance is supported throughout the storefront and portals. The app is built with Next.js App Router, TypeScript, Tailwind CSS, PostgreSQL, Prisma and server-side sessions. Business contact details, prices, stock, reviews and payment credentials are not fabricated.
 
 ## What works
 
@@ -10,12 +10,15 @@ A responsive e-commerce application for New Raj Fashion and Raj Saree Showroom, 
 - Customer cancellation and return requests; Owner/Staff fulfilment transitions; Owner Razorpay refund initiation, refund webhook updates and provider status checks.
 - Manual carrier and tracking-number entry for shipments; customers see tracking details on their order page. Shipment updates and payment/refund events create persisted customer notifications.
 - Separate Staff and Owner portals. Server authorization protects every management API. Staff grants are limited to operational permissions; only the Owner can change catalogue data or global settings.
+- Store visit requests with capacity-checked appointments, private reference photos, customer/Owner/assigned-Staff notices, preparation tasks and rescheduling. Store pickup works through checkout, payment verification, staff preparation, an expiring one-time handover code and an audit history. Visit and pickup reminders are queued transactionally, rescheduled without duplicate keys and processed by an authenticated scheduler.
 - Owner product, image, variant/inventory, category, promotion, banner, staff, order, payment, refund, customer, report, settings, support inbox, review moderation and audit-log screens. Image files are validated, resized and converted to WebP before they are saved to S3-compatible storage.
 - Owner CSV catalog import/export (imports create products only), order/sales export, optional inventory cost and valuation, configurable tax/delivery and invoice details, and downloadable PDF invoices.
 - Staff invitation links with verified identity acceptance, customer communication preferences, verified-purchase reviews, and owner-authorized staff stock counts with audit records.
 - PostgreSQL schema, committed migrations, non-public seed data, one-time Owner bootstrap, focused unit tests and Playwright smoke tests.
 
 Seed data contains only roles, permissions, taxonomy, home sections, a wedding collection and the verified store address. It does not create a demo Owner, customer, product, price, stock, discount or review.
+
+For presentations only, run `npm run db:seed:demo` after the base seed. It creates 11 visibly marked sample products, local vector fashion illustrations and sample promotional banners. It creates no demo customer, order, payment, visit, rating, credential or outbound message. Sample products carry `DEMO-` SKUs and sample artwork notices; the Owner can replace/remove their images in each product’s image manager. Before launch, run `npm run db:clean:demo`; products referenced by carts, wishlists, stock movements or orders are archived with variants disabled so history is preserved. Review all sample prices and inventory before showing them to customers.
 
 ## Requirements
 
@@ -31,9 +34,11 @@ Seed data contains only roles, permissions, taxonomy, home sections, a wedding c
 3. Install packages and generate Prisma Client: `npm install` (the install hook also generates the client) or `npm run db:generate`.
 4. Apply all committed migrations: `npm run db:deploy`.
 5. Seed initial roles, permissions, categories, homepage sections and store address: `npm run db:seed`.
-6. In the RustFS console at `http://localhost:19001`, sign in with `S3_ACCESS_KEY` and `S3_SECRET_KEY`, create the bucket named by `S3_BUCKET` (default `new-raj-fashion`), configure read access for product objects, and set `S3_PUBLIC_URL` to `http://localhost:19000/new-raj-fashion`. Compose publishes the S3 API on host port `19000` and the console on `19001`; the container listens on `9000` and `9001`. The Compose fallback credentials are for local development only; replace them outside local development.
+6. `npm run db:up` creates the product bucket named by `S3_BUCKET` (default `new-raj-fashion`) and the private reference-image bucket named by `S3_PRIVATE_BUCKET` (default `new-raj-fashion-private`). Only product images receive public read access; reference photos stay private and are served only to the customer who submitted the visit, the Owner, or assigned Staff. `S3_PUBLIC_URL` defaults to `http://localhost:19000/new-raj-fashion`. Compose publishes the S3 API on host port `19000` and the RustFS console on `19001`; the container listens on `9000` and `9001`. The Compose fallback credentials are for local development only; replace them outside local development.
 7. Create the first Owner once. Set `OWNER_BOOTSTRAP_TOKEN` and `OWNER_BOOTSTRAP_TOKEN_CONFIRM` to the same random value of 32+ characters, set `OWNER_BOOTSTRAP_CONFIRM=CREATE_OWNER`, and set `OWNER_BOOTSTRAP_USERNAME` and `OWNER_BOOTSTRAP_PASSWORD` (10+ characters). Then run `npm run bootstrap:owner`. The password is never printed. Clear the bootstrap values after the Owner account is created.
-8. Start the app with `npm run dev` and open `http://localhost:3000`.
+8. Set a private `CRON_SECRET` and configure a trusted scheduler to POST to `/api/cron/reminders` every 5 minutes with `Authorization: Bearer <CRON_SECRET>`. This processes durable visit and pickup reminders; without it, reminder records remain queued.
+9. Optionally load the presentation catalogue with `npm run db:seed:demo`.
+10. Start the app with `npm run dev` and open `http://localhost:3000`.
 
 If Docker Desktop is unavailable, point `DATABASE_URL` at a running PostgreSQL service and configure an S3-compatible bucket yourself. The application does not start its own database process.
 
@@ -62,12 +67,13 @@ Set the S3 endpoint, region, bucket, server credentials and public URL or CDN UR
 - `npm run typecheck` — TypeScript validation.
 - `npm run lint` — ESLint.
 - `npm test` — Vitest unit tests.
-- `npm run test:e2e` — Playwright smoke tests; Playwright starts the development server automatically.
+- `npm run test:e2e` — production build plus Playwright route, theme, language, authorization, upload, store visit, reminder and pickup tests; the test server listens on port `3015`. PostgreSQL and local S3 storage must be running.
 - `npm run db:generate` — regenerate Prisma Client after schema changes.
 - `npm run db:deploy` — apply committed migrations.
 - `npm run db:seed` — seed safe role, taxonomy and store configuration.
+- `npm run db:seed:demo` / `npm run db:clean:demo` — add/remove the clearly marked presentation catalogue.
 
-The unit suite covers authorization resolution, order transition rules, account validation, INR/identifier formatting, TOTP verification, Google token validation, CSV safety, checkout allocation and invoice PDF structure. The Playwright suite covers the unauthenticated shopkeeper entry point, anonymous Owner API rejection and a mobile viewport smoke check. It does not yet cover a complete customer purchase, database-backed account journeys or live payment-provider behavior.
+The unit suite covers authorization resolution, order transition rules, account validation, INR/identifier formatting, TOTP verification, Google token validation, CSV safety, checkout allocation and invoice PDF structure. The Playwright suite checks major routes in English and Hindi, light and dark modes, private Owner/Staff API permissions, private and public image access, store visit notifications and preparation, reminder idempotency, and cash pickup from checkout to handover. Real OTP, email/SMS delivery, Razorpay processing/refunds and production scheduler delivery still require provider credentials and an end-to-end run in the target environment.
 
 ## Remaining work before production
 

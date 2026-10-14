@@ -22,7 +22,7 @@ function customerCode() {
 }
 
 export async function POST(req: Request) {
-  const body = schema.safeParse(await req.json());
+  const body = schema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Please check the form and try again." }, { status: 400 });
   try {
     assertPasswordPolicy(body.data.password);

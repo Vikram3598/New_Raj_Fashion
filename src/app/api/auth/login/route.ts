@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Unable to sign in." }, { status: 429 });
   }
-  const body = schema.safeParse(await req.json());
+  const body = schema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Unable to sign in." }, { status: 400 });
   const username = normalizeUsername(body.data.username);
   const user = await prisma.user.findUnique({

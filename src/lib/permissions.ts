@@ -13,6 +13,10 @@ export const PERMISSIONS = {
   REPORTS_READ: "reports.read",
   AUDIT_READ: "audit.read",
   PAYMENT_READ: "payment.read",
+  STORE_VISIT_READ: "store_visit.read",
+  STORE_VISIT_PREPARE: "store_visit.prepare",
+  PICKUP_READ: "pickup.read",
+  PICKUP_FULFIL: "pickup.fulfil",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -24,6 +28,10 @@ export const DEFAULT_STAFF_PERMISSIONS: PermissionKey[] = [
   PERMISSIONS.INVENTORY_READ,
   PERMISSIONS.ORDER_READ,
   PERMISSIONS.ORDER_FULFIL,
+  PERMISSIONS.STORE_VISIT_READ,
+  PERMISSIONS.STORE_VISIT_PREPARE,
+  PERMISSIONS.PICKUP_READ,
+  PERMISSIONS.PICKUP_FULFIL,
 ];
 
 export const FULFILMENT_TRANSITIONS: Record<string, string[]> = {

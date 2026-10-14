@@ -19,6 +19,7 @@ export async function Footer() {
           <ul className="mt-3 grid gap-2 text-sm">
             <li><Link href="/shop">All products</Link></li>
             <li><Link href="/collections/wedding">Wedding collection</Link></li>
+            <li><Link href="/store-visit">Plan Your Store Visit</Link></li>
             <li><Link href="/track-order">Track order</Link></li>
           </ul>
         </div>

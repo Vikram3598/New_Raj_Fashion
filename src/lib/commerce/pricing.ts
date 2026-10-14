@@ -1,4 +1,7 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+
+type QuoteClient = Pick<Prisma.TransactionClient, "cart" | "coupon" | "storeSettings">;
 
 export type QuoteLine = {
   variantId: string;
@@ -35,8 +38,9 @@ export function allocateProportionally(amount: number, weights: number[]) {
   return allocated;
 }
 
-export async function quoteCart(cartId: string, couponCode?: string | null, postalCode?: string): Promise<OrderQuote> {
-  const cart = await prisma.cart.findUnique({
+export async function quoteCart(cartId: string, couponCode?: string | null, postalCode?: string, options?: { includeShipping?: boolean; client?: QuoteClient }): Promise<OrderQuote> {
+  const client = options?.client ?? prisma;
+  const cart = await client.cart.findUnique({
     where: { id: cartId },
     include: {
       items: {
@@ -77,7 +81,7 @@ export async function quoteCart(cartId: string, couponCode?: string | null, post
   let appliedCode: string | undefined;
   const code = couponCode ?? cart.couponCode;
   if (code) {
-    const coupon = await prisma.coupon.findUnique({ where: { code: code.toUpperCase() } });
+    const coupon = await client.coupon.findUnique({ where: { code: code.toUpperCase() } });
     const now = new Date();
     if (
       !coupon ||
@@ -97,12 +101,12 @@ export async function quoteCart(cartId: string, couponCode?: string | null, post
     appliedCode = coupon.code;
   }
 
-  const settings = await prisma.storeSettings.findUnique({ where: { id: "store" } });
+  const settings = await client.storeSettings.findUnique({ where: { id: "store" } });
   const delivery = (settings?.deliveryRules as { feePaise?: number; freeAbovePaise?: number } | null) ?? {};
   const allowedPostalCodes = (delivery as { allowedPostalCodes?: string[] }).allowedPostalCodes;
   if (postalCode && allowedPostalCodes?.length && !allowedPostalCodes.includes(postalCode)) throw new Error("Delivery is not available at the selected postal code.");
-  let shippingPaise = delivery.feePaise ?? 0;
-  if (delivery.freeAbovePaise && subtotalPaise - discountPaise >= delivery.freeAbovePaise) {
+  let shippingPaise = options?.includeShipping === false ? 0 : delivery.feePaise ?? 0;
+  if (options?.includeShipping !== false && delivery.freeAbovePaise && subtotalPaise - discountPaise >= delivery.freeAbovePaise) {
     shippingPaise = 0;
   }
   const taxCfg = (settings?.taxConfig as { rateBps?: number } | null) ?? {};

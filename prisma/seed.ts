@@ -8,6 +8,8 @@ const permissionDescriptions: Record<string, string> = {
   "order.fulfil": "Update fulfilment", "order.refund": "Initiate refunds", "customer.read": "View limited customer data",
   "staff.manage": "Manage staff", "settings.write": "Manage settings", "reports.read": "View reports",
   "audit.read": "View audit records", "payment.read": "View payment information",
+  "store_visit.read": "View assigned store visit requests", "store_visit.prepare": "Prepare assigned store visits",
+  "pickup.read": "View assigned store pickup orders", "pickup.fulfil": "Prepare and hand over assigned pickup orders",
 };
 const categories = ["Men's Wear", "Women's Wear", "Sarees", "Kids' Wear", "Suiting and Shirting", "Wedding Collection", "Festive and Traditional Wear", "Accessories"];
 const subcategories: Record<string, string[]> = {

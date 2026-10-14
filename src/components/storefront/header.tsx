@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchBox } from "@/components/storefront/search-box";
 import { MobileNav } from "@/components/storefront/mobile-nav";
+import { LocaleSwitcher } from "@/i18n/locale-provider";
 
 export async function Header() {
   const [settings, categories, user] = await Promise.all([
@@ -57,10 +58,11 @@ export async function Header() {
               <span className="hidden text-sm sm:inline">{user.username}</span>
             </Link>
           ) : (
-            <Link href="/auth/login" className="btn-primary !min-h-10 !px-4">
+            <Link href="/auth/login" className="btn-primary hidden !min-h-10 !px-4 sm:inline-flex">
               Login / Sign up
             </Link>
           )}
+          <span className="hidden sm:inline-flex"><LocaleSwitcher compact /></span>
           <ThemeToggle />
         </nav>
       </div>
@@ -71,6 +73,7 @@ export async function Header() {
               {c.name}
             </Link>
           ))}
+          <Link href="/store-visit" className="whitespace-nowrap font-medium text-maroon-700">Plan Your Store Visit</Link>
           <Link href="/shop" className="whitespace-nowrap font-medium text-maroon-700">
             All products
           </Link>

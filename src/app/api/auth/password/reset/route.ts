@@ -16,7 +16,7 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const body = schema.safeParse(await req.json());
+  const body = schema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Unable to reset password." }, { status: 400 });
   try {
     assertPasswordPolicy(body.data.password);

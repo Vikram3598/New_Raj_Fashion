@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LocaleProvider } from "@/i18n/locale-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,12 +20,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const initialLocale = cookieStore.get("nrf_locale")?.value === "hi" ? "hi" : "en";
   return (
-    <html lang="en-IN" suppressHydrationWarning>
+    <html lang={initialLocale === "hi" ? "hi-IN" : "en-IN"} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          {children}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <LocaleProvider initialLocale={initialLocale}>{children}</LocaleProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -109,8 +109,18 @@ export async function updateRefundStatus(refundId: string, status: "PENDING" | "
     const orderPaymentStatus = paidTotal > 0 && refundedForOrder >= paidTotal ? "REFUNDED" : refundedForOrder > 0 ? "PARTIALLY_REFUNDED" : "PAID";
     await tx.order.update({ where: { id: refund.orderId }, data: { paymentStatus: orderPaymentStatus } });
     if (orderPaymentStatus === "REFUNDED" && refund.order.fulfilmentStatus === "REFUND_PROCESSING") {
-      await tx.order.update({ where: { id: refund.orderId }, data: { fulfilmentStatus: "REFUNDED" } });
-      await tx.orderStatusEvent.create({ data: { orderId: refund.orderId, fromStatus: "REFUND_PROCESSING", toStatus: "REFUNDED", note: "Provider refund completed" } });
+      const completed = await tx.order.updateMany({ where: { id: refund.orderId, fulfilmentStatus: "REFUND_PROCESSING" }, data: { fulfilmentStatus: "REFUNDED" } });
+      if (completed.count) {
+        await tx.orderStatusEvent.create({ data: { orderId: refund.orderId, fromStatus: "REFUND_PROCESSING", toStatus: "REFUNDED", note: "Provider refund completed" } });
+        const pickup = await tx.orderFulfilment.findFirst({ where: { orderId: refund.orderId, type: "STORE_PICKUP", status: { not: "REFUNDED" } }, select: { id: true } });
+        if (pickup) {
+          const changed = await tx.orderFulfilment.updateMany({ where: { id: pickup.id, status: { not: "REFUNDED" } }, data: { status: "REFUNDED", pickupCodeHash: null, pickupCodeExpiresAt: null } });
+          if (changed.count) {
+            await tx.pickupHistory.create({ data: { orderFulfilmentId: pickup.id, status: "REFUNDED", note: "Provider confirmed full refund" } });
+            await tx.pickupReminder.updateMany({ where: { fulfilmentId: pickup.id, status: "QUEUED" }, data: { status: "SKIPPED", error: "Refund completed" } });
+          }
+        }
+      }
     }
     return refund;
   });

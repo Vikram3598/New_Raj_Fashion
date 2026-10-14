@@ -6,6 +6,7 @@ import { ProductStatusEditor } from "@/components/shopkeeper/product-status-edit
 import { VariantEditor } from "@/components/shopkeeper/variant-editor";
 import { ProductDetailsEditor } from "@/components/shopkeeper/product-details-editor";
 import { ProductImageManager } from "@/components/shopkeeper/product-image-manager";
+import { LocalizedValue } from "@/i18n/locale-provider";
 
 export default async function ProductDetail({ params }: { params: Promise<{ productId: string }> }) {
   try { await requireOwner(); } catch { redirect("/shopkeeper/login?next=/shopkeeper/owner/products"); }
@@ -17,7 +18,7 @@ export default async function ProductDetail({ params }: { params: Promise<{ prod
   if (!product) notFound();
   return <main className="container-nrf max-w-4xl py-10">
     <Link href="/shopkeeper/owner/products" className="text-sm text-maroon-700">← Products</Link>
-    <h1 className="mt-2 font-serif text-4xl">{product.name}</h1>
+    <h1 className="mt-2 font-serif text-4xl"><LocalizedValue english={product.name} hindi={product.nameHi}/></h1>
     <p className="mt-2 text-sm text-[var(--muted)]">SKU {product.sku} · {product.category?.name ?? "Uncategorized"} · {product.slug}</p>
     <section className="card-nrf mt-6 p-5"><h2 className="mb-4 font-serif text-2xl">Publication</h2><ProductStatusEditor productId={product.id} status={product.status} /></section>
     <ProductDetailsEditor product={product} categories={categories} />

@@ -1,0 +1,23 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+type Slot = { id: string; kind: "VISIT" | "PICKUP"; startsAt: string; capacity: number; reservedCount: number; closed: boolean };
+export function SlotCalendar() {
+  const [date, setDate] = useState(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })); const [kind, setKind] = useState<"VISIT" | "PICKUP">("VISIT"); const [slots, setSlots] = useState<Slot[]>([]); const [message, setMessage] = useState(""); const [hours, setHours] = useState({ open: 600, close: 1200, visitCapacity: 3, pickupCapacity: 5 });
+  const refresh = useCallback(async () => { const response = await fetch(`/api/owner/store-slots?date=${date}&kind=${kind}`); const data = await response.json(); if (response.ok) { setSlots(data.slots ?? []); setHours({ open: data.settings?.appointmentOpenMinute ?? 600, close: data.settings?.appointmentCloseMinute ?? 1200, visitCapacity: data.settings?.visitCapacity ?? 3, pickupCapacity: data.settings?.pickupCapacity ?? 5 }); } else setMessage(data.error ?? "Unable to load slots."); }, [date, kind]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  async function toggle(hour: number, existing?: Slot) {
+    const time = `${String(hour).padStart(2, "0")}:00`;
+    const response = await fetch("/api/owner/store-slots", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, date, time, closed: !(existing?.closed ?? false), capacity: existing?.capacity }) });
+    const data = await response.json(); setMessage(response.ok ? "Time slot updated." : data.error ?? "Update failed."); await refresh();
+  }
+  async function setCapacity(hour: number, capacity: number) {
+    const time = `${String(hour).padStart(2, "0")}:00`;
+    const existing = slots.find((slot) => new Date(slot.startsAt).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) === time);
+    const response = await fetch("/api/owner/store-slots", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, date, time, closed: existing?.closed ?? false, capacity }) });
+    const data = await response.json(); setMessage(response.ok ? "Capacity updated." : data.error ?? "Update failed."); await refresh();
+  }
+  const firstHour = Math.ceil(hours.open / 60); const lastHour = Math.floor(hours.close / 60) - 1;
+  const rows = Array.from({ length: Math.max(0, lastHour - firstHour + 1) }, (_, index) => firstHour + index);
+  return <main className="container-nrf py-9"><a className="text-sm text-maroon-700" href="/shopkeeper/owner/store-visits">← Back to store visits</a><h1 className="mt-3 font-serif text-4xl">Store slot calendar</h1><p className="mt-2 text-sm text-[var(--muted)]">Manage appointment and pickup capacity by hour. Slots with active bookings cannot be closed or reduced below current reservations.</p><div className="mt-5 flex flex-wrap gap-3"><select className="input-nrf !w-auto" value={kind} onChange={(event) => setKind(event.target.value as "VISIT" | "PICKUP")}><option value="VISIT">Store visits</option><option value="PICKUP">Store pickup</option></select><input className="input-nrf !w-auto" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div>{message ? <p className="mt-3 text-sm text-maroon-700">{message}</p> : null}<div className="mt-5 grid gap-3 sm:grid-cols-2">{rows.map((hour) => { const time = `${String(hour).padStart(2, "0")}:00`; const slot = slots.find((entry) => new Date(entry.startsAt).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) === time); const defaultCapacity = kind === "VISIT" ? hours.visitCapacity : hours.pickupCapacity; return <article key={hour} className="card-nrf flex flex-wrap items-center justify-between gap-3 p-4"><div><strong>{time} – {String(hour + 1).padStart(2, "0")}:00</strong><p className="text-sm text-[var(--muted)]">{slot ? `${slot.reservedCount}/${slot.capacity} booked${slot.closed ? " · Closed" : ""}` : "No bookings · Default capacity"}</p></div><div className="flex items-center gap-2"><label className="sr-only" htmlFor={`capacity-${hour}`}>Capacity</label><input id={`capacity-${hour}`} type="number" min={1} max={100} defaultValue={slot?.capacity ?? defaultCapacity} onBlur={(event) => { const value = Number(event.target.value); if (value !== (slot?.capacity ?? defaultCapacity)) void setCapacity(hour, value); }} className="input-nrf !w-20 !py-1.5"/><button className={slot?.closed ? "btn-primary !min-h-9 !px-3" : "btn-secondary !min-h-9 !px-3"} disabled={Boolean(slot?.reservedCount)} onClick={() => void toggle(hour, slot)}>{slot?.closed ? "Open" : "Close"}</button></div></article>; })}</div></main>;
+}

@@ -33,7 +33,7 @@ export default async function CheckoutPage() {
     <div className="container-nrf grid gap-8 py-10 lg:grid-cols-2">
       <div>
         <h1 className="font-serif text-4xl">Checkout</h1>
-        <CheckoutForm addresses={addresses} codEnabled={Boolean(payCfg.codEnabled)} razorpayEnabled={razorpayConfigured()} />
+        <CheckoutForm addresses={addresses} codEnabled={Boolean(payCfg.codEnabled)} cashOnPickupEnabled={Boolean(settings?.allowCashOnPickup)} razorpayEnabled={razorpayConfigured()} store={{ name: settings?.storeName ?? "New Raj Fashion and Raj Saree Showroom", address: [settings?.address, settings?.city, settings?.state, settings?.postalCode].filter(Boolean).join(", "), openMinute: settings?.appointmentOpenMinute ?? 600, closeMinute: settings?.appointmentCloseMinute ?? 1200 }} />
       </div>
       <aside className="card-nrf h-fit p-5">
         <h2 className="font-medium">Order summary</h2>
